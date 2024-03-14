@@ -1,0 +1,109 @@
+/*@!Encoding:1252*/
+
+variables
+{  
+  message CAN1.TCO1 	 TCO1;
+  timer Timer_Tattack1;
+  timer Timer_Tattack2; 
+  timer Timer_Tattack3;
+  long messageID;
+  char hex_value[100];
+  dword y;
+  long dec_ID;
+  int epsilon;
+  float alpha;
+  float currentValTCO1;
+  double delayAttack = 0;
+}
+
+//this function is used to convert hexa to decimal
+void HexToDec(long messageID){
+  
+  snprintf(hex_value,elcount(hex_value),"0x%x", messageID); 
+  strtol(hex_value, dec_ID); //converts string to long
+  
+}
+
+//TcoVehSpeed - multiplication attack signal with alpha
+float TcoVehSpeedAlphaAttack(float CANsignal, float alpha){
+  
+  //if the multiplied attack is greater than the last valid value, the last valid value will be send
+  if((CANsignal*alpha)>64255){
+    return 64255;
+  }
+  else 
+    return CANsignal*alpha;
+      
+}
+
+void TCO1Attack(){
+  //ESI is set to 1 when an intrusion occurs
+  TCO1.ESI = 1;      
+  TCO1.TcoVehSpeed=random(64255.976);
+  //TCO1.TcoPerf=random(4);
+  //TCO1.HandInfo=random(4);
+  //TCO1.SysEvt=random(4);
+  //TCO1.TcoVehSpeed=TcoVehSpeedAlphaAttack(TCO1.TcoVehSpeed, 2); 
+  output(TCO1);
+}
+
+//this function sends an intrusion after delayAttack time
+void StartAttack(double maxDelayAttack){
+  
+  if(isTimerActive(Timer_Tattack1)==0){
+    delayAttack = random(maxDelayAttack);
+    setTimer(Timer_Tattack1, 0, delayAttack*1000);
+  }
+  else if(isTimerActive(Timer_Tattack2)==0){
+    delayAttack = random(maxDelayAttack);
+    setTimer(Timer_Tattack2, 0, delayAttack*1000);
+  }
+  else{
+    delayAttack = random(maxDelayAttack);
+    setTimer(Timer_Tattack3,0, delayAttack*1000);
+  }
+  
+}
+
+//TCO1 message - cycle time = 20 ms
+on message TCO1{
+  
+  messageID=(this.id-0x80000000);
+  HexToDec(messageID);
+  
+  //ESI is set to 1 when an intrusion occurs
+  if(TCO1.ESI==1){   
+    writeToLogEx("atac");
+    writeToLog(", %d, %f, %f, %f, %f, %d", dec_ID, getSignal(TCO1::TcoPerf), getSignal(TCO1::HandInfo), getSignal(TCO1::SysEvt), getSignal(TCO1::TcoVehSpeed), TCO1.ESI);
+    TCO1.ESI=0;
+  }
+  else{
+    writeToLogEx("legit");
+    writeToLog(", %d, %f, %f, %f, %f, %d", dec_ID, getSignal(TCO1::TcoPerf), getSignal(TCO1::HandInfo), getSignal(TCO1::SysEvt), getSignal(TCO1::TcoVehSpeed), TCO1.ESI);
+    //used for multiplication attack -> when TcoVehSpeed = 0 multiplied attack does not make sense(same as legit signal)
+    currentValTCO1 = getSignal(TCO1::TcoVehSpeed);
+    TCO1=this;
+    
+    //epsilon = 1 -> generate intrusion
+    //epsilon - sets attack rate: 2 -> 50%, 4 -> 25%, 10 -> 10%, no value set -> 100%
+    epsilon=random(2);
+    if(epsilon==1 /*&& currentValTCO1 != 0*/){
+      StartAttack(19000);  
+    }
+  }
+}
+
+
+on timer Timer_Tattack1{
+  TCO1Attack();
+}
+
+on timer Timer_Tattack2{
+  TCO1Attack();   
+}
+
+on timer Timer_Tattack3{
+  TCO1Attack(); 
+}
+
+
