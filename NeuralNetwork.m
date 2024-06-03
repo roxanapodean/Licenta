@@ -43,9 +43,14 @@ TN = C(1, 1);
 FP = C(1, 2);
 FN = C(2, 1);
 
+accuracy = (TP + TN)/(TP + TN + FP + FN) * 100;
+precision = TP/(TP + FP) * 100;
+
 fprintf('TP: %d\n', TP);
 fprintf('TN: %d\n', TN);
 fprintf('FP: %d\n', FP);
 fprintf('FN: %d\n', FN);
+fprintf('Accuracy: %.2f%%\n', accuracy);
+fprintf('Precision: %.2f%%\n', precision);
 
 
