@@ -13,12 +13,15 @@ variables
   dword y;
   long dec_ID;
   int epsilon;
-  float alpha;
+  float alpha = 2;
   float currentValTCO1, currentValEEC1;
   double delayAttack = 0;
-  byte rate_attack = 4;
-  byte type_attack = 2;
-  byte target = 0;
+  //byte rate_attack = 4;
+  //byte type_attack = 2;
+  //byte target = 0;
+  byte rate_attack = 10;
+  byte type_attack = 1;
+  byte target = 1;
 }
 
 //epsilon = 0 -> generate intrusion
@@ -172,20 +175,17 @@ void StartAttack(double maxDelayAttack){
     delayAttack = random(maxDelayAttack);
     setTimer(Timer_Tattack2, 0, delayAttack*1000);
   }
-  /*else{
-    delayAttack = random(maxDelayAttack);
-    setTimer(Timer_Tattack3,0, delayAttack*1000);
-  }*/
 }
 
 //TCO1 message - cycle time = 20 ms
+
 on message TCO1{
   
   messageID=(this.id-0x80000000);
   HexToDec(messageID);
   
   //ESI is set to 1 when an intrusion occurs
-  if(@Intrusion::sendAttack==5 && (target == 2 || target == 6)){
+  if(@Intrusion::sendStopAttack==5 && (target == 2 || target == 6)){
     if(TCO1.ESI==1){   
       writeToLogEx("atac");
       writeToLog(", %d, %f, %f, %f, %f, %d", dec_ID, getSignal(TCO1::TcoPerf), getSignal(TCO1::HandInfo), getSignal(TCO1::SysEvt), getSignal(TCO1::TcoVehSpeed), TCO1.ESI);
@@ -200,7 +200,7 @@ on message TCO1{
       
       epsilon=random(rate_attack);
         
-      if(epsilon==0 /*&& currentValTCO1 != 0*/){
+      if(epsilon==0){
         StartAttack(19000);        
       }
     }
@@ -212,7 +212,7 @@ on message EEC1
   messageID=(this.id-0x80000000);
   HexToDec(messageID);
   
-  if(@Intrusion::sendAttack==5 && (target == 1 || target == 5)){
+  if(@Intrusion::sendStopAttack==5 && (target == 1 || target == 5)){
     if(EEC1.ESI==1){ 
       writeToLogEx("atac");
       writeToLog(", %d, %f, %f, %f, %d", dec_ID, getSignal(EEC1::EngTrqMode), getSignal(EEC1::EngSpeed), getSignal(EEC1::EngStarterMode), EEC1.ESI);
@@ -227,7 +227,7 @@ on message EEC1
       EEC1=this;
       
       epsilon=random(rate_attack);
-      if(epsilon==0 /*&& currentValEEC1 != 0*/){
+      if(epsilon==0){
         StartAttack(9000);  
       }  
        
@@ -240,7 +240,7 @@ on message LFE1
   messageID=(this.id-0x80000000);
   HexToDec(messageID);
   
-  if(@Intrusion::sendAttack==5 && (target == 3 || target == 7)){
+  if(@Intrusion::sendStopAttack==5 && (target == 3 || target == 7)){
     if(LFE1.ESI==1){ 
       writeToLogEx("atac");
       writeToLogEx("%d, %f, %f, %d", dec_ID, getSignal(LFE1::EngFuelRate), getSignal(LFE1::EngInstFuelEcon), LFE1.ESI);
@@ -253,19 +253,20 @@ on message LFE1
       LFE1=this;
       
       epsilon=random(rate_attack);
-      if(epsilon==0 /*&& currentValEEC1 != 0*/){
+      if(epsilon==0){
         StartAttack(90000);  
       }      
     }
   }
 }
 
+
 on message AMB_21
 {
   messageID=(this.id-0x80000000);
   HexToDec(messageID);
   
-  if(@Intrusion::sendAttack==5 && (target == 4 || target == 8)){
+  if(@Intrusion::sendStopAttack==5 && (target == 4 || target == 8)){
     if(AMB_21.ESI==1){ 
       writeToLogEx("atac");
       writeToLogEx("%d, %f, %d", dec_ID, getSignal(AMB_21::AmbAirTemp), AMB_21.ESI);
@@ -278,7 +279,7 @@ on message AMB_21
       AMB_21=this;
       
       epsilon=random(rate_attack);
-      if(epsilon==0 /*&& currentValEEC1 != 0*/){
+      if(epsilon==0){
         StartAttack(900000);  
       }      
     }
@@ -308,12 +309,7 @@ on timer Timer_Tattack2{
   
 }
 
-/*on timer Timer_Tattack3{
-  writeToLogEx("target: %d", target);
-  if(target == 1 || target == 5)
-    EEC1Attack();
-  else if(target == 2 || target == 6)
-    TCO1Attack();
-}*/
+
+
 
 
